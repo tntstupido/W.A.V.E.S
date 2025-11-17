@@ -47,6 +47,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Waves")
 	bool TriggerOverload();
 
+	UFUNCTION(BlueprintPure, Category = "Waves")
+	EWaveFrequency GetCurrentFrequency() const { return CurrentFrequency; }
+
+
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Waves")
 	bool bHolding = false;

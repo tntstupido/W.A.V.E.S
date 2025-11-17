@@ -1,31 +1,35 @@
+// Source/Waves/Public/Pawn_Shield.h
 #pragma once
+
 #include "CoreMinimal.h"
 #include "GameFramework/Pawn.h"
-#include "WavesTypes.h"
 #include "Pawn_Shield.generated.h"
 
+class UCapsuleComponent;
 class UStaticMeshComponent;
 class UShieldComponent;
-class UDA_WaveColorSet;
 
 UCLASS()
 class WAVES_API APawn_Shield : public APawn
 {
 	GENERATED_BODY()
+
 public:
 	APawn_Shield();
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Waves")
+	/** Collision root */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Shield")
+	TObjectPtr<UCapsuleComponent> Collision;
+
+	/** Visual mesh (no collision) */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Shield")
 	TObjectPtr<UStaticMeshComponent> VisualMesh;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Waves")
+	/** Shield logic component */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Shield")
 	TObjectPtr<UShieldComponent> Shield;
 
-	/** Optional override if you want to inject ColorSet here. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Waves|Data")
-	TObjectPtr<UDA_WaveColorSet> ColorSetOverride;
-
-	// Input-driven API (called by controller)
+	// Input API (called from PlayerController)
 	UFUNCTION(BlueprintCallable) void NextFrequency();
 	UFUNCTION(BlueprintCallable) void PrevFrequency();
 	UFUNCTION(BlueprintCallable) void BeginHold();

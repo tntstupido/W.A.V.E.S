@@ -39,7 +39,11 @@ float ASpawner_Wave::ComputeInterval() const
 
 void ASpawner_Wave::SpawnOnce()
 {
-	if (!WaveClass) { StartSpawning(); return; }
+	if (!WaveClass)
+	{
+		StartSpawning();
+		return;
+	}
 
 	UWorld* World = GetWorld();
 	if (!World) { return; }
@@ -50,9 +54,14 @@ void ASpawner_Wave::SpawnOnce()
 	AActor_Wave* Wave = World->SpawnActor<AActor_Wave>(WaveClass, GetActorTransform(), Params);
 	if (Wave)
 	{
-		// Minimal spec randomization — frequency cycles through 4 colors
+		// Random frequency 0..3
 		const int32 FreqIdx = RNG.RandRange(0, 3);
-		Wave->Spec.Frequency = static_cast<EWaveFrequency>(FreqIdx);
+		const EWaveFrequency NewFreq = static_cast<EWaveFrequency>(FreqIdx);
+
+		Wave->SetFrequency(NewFreq);
+
+		UE_LOG(LogTemp, Log, TEXT("Spawner %s created wave %s with Freq=%d"),
+			*GetName(), *Wave->GetName(), FreqIdx);
 
 		// Optional: speed multiplier from difficulty
 		if (const AGS_Waves* GS = World->GetGameState<AGS_Waves>())
@@ -69,3 +78,4 @@ void ASpawner_Wave::SpawnOnce()
 	const float NextInterval = ComputeInterval();
 	GetWorldTimerManager().SetTimer(TimerHandle_Spawn, this, &ASpawner_Wave::SpawnOnce, NextInterval, false);
 }
+

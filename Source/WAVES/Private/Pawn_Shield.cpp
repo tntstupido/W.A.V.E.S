@@ -1,38 +1,58 @@
+// Source/Waves/Private/Pawn_Shield.cpp
 #include "Pawn_Shield.h"
+
+#include "Components/CapsuleComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "ShieldComponent.h"
-#include "GM_Waves.h"
-#include "DA_WaveColorSet.h"
-#include "Engine/World.h"
 
 APawn_Shield::APawn_Shield()
 {
 	PrimaryActorTick.bCanEverTick = false;
 
-	VisualMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("VisualMesh"));
-	SetRootComponent(VisualMesh);
+	// Collision root
+	Collision = CreateDefaultSubobject<UCapsuleComponent>(TEXT("Collision"));
+	SetRootComponent(Collision);
 
+	Collision->InitCapsuleSize(120.f, 200.f);
+	Collision->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	Collision->SetCollisionResponseToAllChannels(ECR_Overlap);
+	Collision->SetGenerateOverlapEvents(true);
+
+	// Visual mesh
+	VisualMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("VisualMesh"));
+	VisualMesh->SetupAttachment(Collision);
+	VisualMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	// Shield logic
 	Shield = CreateDefaultSubobject<UShieldComponent>(TEXT("Shield"));
 }
 
 void APawn_Shield::BeginPlay()
 {
 	Super::BeginPlay();
-
-	// Inject ColorSet from GameMode if not set
-	if (!Shield->ColorSet)
-	{
-		if (AGM_Waves* GM = GetWorld() ? GetWorld()->GetAuthGameMode<AGM_Waves>() : nullptr)
-		{
-			Shield->ColorSet = GM->GetColorSet();
-		}
-	}
-	// Manual override (if you set it in BP)
-	if (ColorSetOverride) { Shield->ColorSet = ColorSetOverride; }
 }
 
-void APawn_Shield::NextFrequency() { Shield->CycleNext(); }
-void APawn_Shield::PrevFrequency() { Shield->CyclePrev(); }
-void APawn_Shield::BeginHold() { Shield->BeginHold(); }
-void APawn_Shield::EndHold() { Shield->EndHold(); }
-void APawn_Shield::TriggerOverload() { Shield->TriggerOverload(); }
+void APawn_Shield::NextFrequency()
+{
+	if (Shield) Shield->CycleNext();
+}
+
+void APawn_Shield::PrevFrequency()
+{
+	if (Shield) Shield->CyclePrev();
+}
+
+void APawn_Shield::BeginHold()
+{
+	if (Shield) Shield->BeginHold();
+}
+
+void APawn_Shield::EndHold()
+{
+	if (Shield) Shield->EndHold();
+}
+
+void APawn_Shield::TriggerOverload()
+{
+	if (Shield) Shield->TriggerOverload();
+}
