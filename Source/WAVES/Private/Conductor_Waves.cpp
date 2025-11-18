@@ -1,8 +1,8 @@
 // Source/Waves/Private/Conductor_Waves.cpp
 
 #include "Conductor_Waves.h"
-
 #include "Kismet/GameplayStatics.h"
+#include "DA_WavesMusicTrack.h"
 
 AConductor_Waves::AConductor_Waves()
 {
@@ -12,6 +12,18 @@ AConductor_Waves::AConductor_Waves()
 void AConductor_Waves::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// If a TrackConfig is provided, pull BPM/BeatsPerBar/Music from it
+	if (TrackConfig)
+	{
+		if (TrackConfig->MusicTrack)
+		{
+			MusicTrack = TrackConfig->MusicTrack;
+		}
+
+		BPM = TrackConfig->BPM;
+		BeatsPerBar = TrackConfig->BeatsPerBar;
+	}
 
 	// Play music
 	if (MusicTrack)
@@ -32,7 +44,7 @@ void AConductor_Waves::BeginPlay()
 			this,
 			&AConductor_Waves::HandleBeat,
 			BeatLength,
-			true  // looping
+			true
 		);
 	}
 }
@@ -54,4 +66,25 @@ void AConductor_Waves::HandleBeat()
 	OnBar.Broadcast(BarCounter, BeatInBar);
 
 	++BeatCounter;
+}
+
+float AConductor_Waves::GetIntensityForBeat(int32 BeatIndex) const
+{
+	if (!TrackConfig || TrackConfig->Bars.Num() == 0 || BeatsPerBar <= 0)
+	{
+		return 1.f; // default intensity
+	}
+
+	const int32 BarIndex = FMath::Clamp(BeatIndex / BeatsPerBar, 0, TrackConfig->Bars.Num() - 1);
+	return TrackConfig->Bars[BarIndex].Intensity;
+}
+
+int32 AConductor_Waves::GetBeatInBar(int32 BeatIndex) const
+{
+	if (BeatsPerBar <= 0)
+	{
+		return BeatIndex;
+	}
+
+	return BeatIndex % BeatsPerBar;
 }

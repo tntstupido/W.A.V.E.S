@@ -7,15 +7,11 @@
 #include "Conductor_Waves.generated.h"
 
 class USoundBase;
+class UDA_WavesMusicTrack;    // NEW
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnBeat, int32, BeatIndex);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnBar, int32, BarIndex, int32, BeatInBar);
 
-/**
- * Simple music conductor that:
- * - Plays a music track
- * - Fires OnBeat / OnBar events based on BPM
- */
 UCLASS()
 class WAVES_API AConductor_Waves : public AActor
 {
@@ -24,15 +20,19 @@ class WAVES_API AConductor_Waves : public AActor
 public:
 	AConductor_Waves();
 
-	/** The music track to play at BeginPlay */
+	/** Optional music track config: defines BPM, BeatsPerBar, Bars, MusicTrack */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Music")
+	TObjectPtr<UDA_WavesMusicTrack> TrackConfig;
+
+	/** The music track to play at BeginPlay (can be overridden by TrackConfig) */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Music")
 	TObjectPtr<USoundBase> MusicTrack;
 
-	/** BPM (beats per minute) of the track */
+	/** BPM of the track (if TrackConfig is set, this is taken from there) */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Music", meta = (ClampMin = "40.0", ClampMax = "200.0"))
 	float BPM = 120.f;
 
-	/** Beats per bar (time signature numerator, e.g. 4 for 4/4) */
+	/** Beats per bar (if TrackConfig is set, this is taken from there) */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Music", meta = (ClampMin = "1", ClampMax = "16"))
 	int32 BeatsPerBar = 4;
 
@@ -43,6 +43,14 @@ public:
 	/** Fired every beat with bar info */
 	UPROPERTY(BlueprintAssignable, Category = "Music")
 	FOnBar OnBar;
+
+	/** Intensity (0-1) for a given beat index, based on TrackConfig bars */
+	UFUNCTION(BlueprintCallable, Category = "Music")
+	float GetIntensityForBeat(int32 BeatIndex) const;
+
+	/** Beat index within bar for a given global beat index */
+	UFUNCTION(BlueprintCallable, Category = "Music")
+	int32 GetBeatInBar(int32 BeatIndex) const;
 
 protected:
 	virtual void BeginPlay() override;

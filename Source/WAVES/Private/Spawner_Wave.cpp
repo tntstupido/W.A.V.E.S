@@ -20,22 +20,22 @@ void ASpawner_Wave::BeginPlay()
 	
 	if (bUseMusicConductor)
 	{
-		// Try to find Conductor_Waves in the level
 		AConductor_Waves* Conductor = Cast<AConductor_Waves>(
 			UGameplayStatics::GetActorOfClass(this, AConductor_Waves::StaticClass())
 		);
 
 		if (Conductor)
 		{
+			CachedConductor = Conductor;
+
 			UE_LOG(LogTemp, Log, TEXT("Spawner %s bound to Conductor %s"),
 				*GetName(), *Conductor->GetName());
 
 			Conductor->OnBeat.AddDynamic(this, &ASpawner_Wave::HandleBeat);
-			return; // do NOT start our own timer if conductor exists
+			return;
 		}
 	}
 
-	// Fallback: use old timer-based spawning
 	UE_LOG(LogTemp, Log, TEXT("Spawner %s using internal timer (no Conductor or disabled)."),
 		*GetName());
 
@@ -44,15 +44,63 @@ void ASpawner_Wave::BeginPlay()
 
 void ASpawner_Wave::HandleBeat(int32 BeatIndex)
 {
-	// EXAMPLE PATTERN LOGIC:
-	// For now, spawn on EVERY beat.
+	// 1) Get intensity & beat-in-bar from Conductor
+	float Intensity = 1.f;
+	int32 BeatInBar = 0;
 
-	// You can easily adjust patterns:
-	// - every 2nd beat: if (BeatIndex % 2 == 0)
-	// - burst at start of bar: use OnBar instead, etc.
+	if (CachedConductor.IsValid())
+	{
+		Intensity = CachedConductor->GetIntensityForBeat(BeatIndex);
+		BeatInBar = CachedConductor->GetBeatInBar(BeatIndex);
+	}
 
-	SpawnOnce();
+	Intensity = FMath::Clamp(Intensity, 0.f, 1.f);
+
+	// 2) Convert intensity to spawn probability
+	const float SpawnChance = FMath::Lerp(MinSpawnChance, MaxSpawnChance, Intensity);
+
+	bool bShouldSpawn = false;
+
+	// 3) Optionally force spawn on downbeat (e.g. kick hits)
+	if (bForceSpawnOnDownbeat && BeatInBar == 0 && Intensity > 0.f)
+	{
+		bShouldSpawn = true;
+	}
+	else
+	{
+		const float Roll = FMath::FRand();
+		bShouldSpawn = (Roll < SpawnChance);
+	}
+
+	// 4) Optional pattern mask (can give some structure)
+	if (bShouldSpawn && BeatSpawnPattern.Num() > 0)
+	{
+		const int32 PatternLength = BeatSpawnPattern.Num();
+		if (PatternLength > 0)
+		{
+			int32 EffectiveBeat = BeatIndex + BeatOffset;
+
+			if (EffectiveBeat < 0)
+			{
+				int32 NumLoops = (FMath::Abs(EffectiveBeat) / PatternLength) + 1;
+				EffectiveBeat += NumLoops * PatternLength;
+			}
+
+			const int32 PatternIndex = EffectiveBeat % PatternLength;
+
+			if (!BeatSpawnPattern[PatternIndex])
+			{
+				bShouldSpawn = false;
+			}
+		}
+	}
+
+	if (bShouldSpawn)
+	{
+		SpawnOnce();
+	}
 }
+
 
 
 
@@ -81,12 +129,11 @@ void ASpawner_Wave::SpawnOnce()
 {
 	if (!WaveClass)
 	{
-		StartSpawning();
 		return;
 	}
 
 	UWorld* World = GetWorld();
-	if (!World) { return; }
+	if (!World) return;
 
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
@@ -94,28 +141,36 @@ void ASpawner_Wave::SpawnOnce()
 	AActor_Wave* Wave = World->SpawnActor<AActor_Wave>(WaveClass, GetActorTransform(), Params);
 	if (Wave)
 	{
-		// Random frequency 0..3
+		// Set frequency, difficulty, etc.
 		const int32 FreqIdx = RNG.RandRange(0, 3);
 		const EWaveFrequency NewFreq = static_cast<EWaveFrequency>(FreqIdx);
-
 		Wave->SetFrequency(NewFreq);
 
-		UE_LOG(LogTemp, Log, TEXT("Spawner %s created wave %s with Freq=%d"),
-			*GetName(), *Wave->GetName(), FreqIdx);
-
-		// Optional: speed multiplier from difficulty
-		if (const AGS_Waves* GS = World->GetGameState<AGS_Waves>())
+		// --- NEW: auto adjust speed for beat-sync travel ---
+		if (bAutoAdjustWaveSpeed && ImpactTarget && CachedConductor.IsValid())
 		{
-			if (Difficulty)
+			const float BPM = CachedConductor->BPM;
+			const float BeatSeconds = (BPM > 0.f) ? 60.f / BPM : 0.6f;
+			const float TravelTime = TravelBeats * BeatSeconds;
+
+			const FVector SpawnLocation = GetActorLocation();
+			const FVector TargetLocation = ImpactTarget->GetActorLocation();
+
+			// Project distance along the wave movement direction
+			const FVector Dir = Wave->MoveDir.GetSafeNormal();
+			const float DistanceAlongDir = FVector::DotProduct(TargetLocation - SpawnLocation, Dir);
+			const float Distance = FMath::Abs(DistanceAlongDir);
+
+			if (TravelTime > 0.f && Distance > 0.f)
 			{
-				const float Mul = Difficulty->GetWaveSpeedMulAt(GS->ElapsedSeconds, 1.0f);
-				Wave->Spec.Speed *= Mul;
+				const float NewSpeed = Distance / TravelTime;
+				Wave->Spec.Speed = NewSpeed;
+
+				UE_LOG(LogTemp, Log, TEXT("Spawner %s set Wave %s Speed=%.2f for Distance=%.1f, TravelBeats=%.1f"),
+					*GetName(), *Wave->GetName(), NewSpeed, Distance, TravelBeats);
 			}
 		}
 	}
-
-	// schedule next
-	const float NextInterval = ComputeInterval();
-	GetWorldTimerManager().SetTimer(TimerHandle_Spawn, this, &ASpawner_Wave::SpawnOnce, NextInterval, false);
 }
+
 
